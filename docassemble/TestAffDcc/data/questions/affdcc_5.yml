@@ -1,0 +1,315 @@
+metadata:
+  title: Affidavit Disclosing Care and Custody (Massachusetts Court System)
+  short title: Affidavit Disclosing Care and Custody
+  comment: One of several documents necessary when filing a Complaint for Divorce.
+---
+modules:
+  - docassemble.MACourts.macourts
+  - docassemble.base.util
+# - docassemble.gbls
+#---
+#include:
+#  - docassemble.gbls:basic-questions-gbls.yml
+---
+objects:
+  - macourts: MACourtList.using(courts=['probate_and_family_courts'])
+  - client: Individual
+  - plaintiff: Individual
+  - defendant: Individual
+  - opposing_party: Individual
+  - children: ChildList.using(ask_number=True)
+---
+objects:
+  - children[i].cases: DAList.using(object_type=DAObject, auto_gather=True)
+---
+mandatory: True
+code: |
+  client.name.first
+  selected_court
+  docket_number 
+  client.name.first
+  client.address.address
+  client.address.city
+  opposing_party.name.first
+  opposing_party.address.address
+  opposing_party.address.city
+  if client_role == 'Plaintiff':
+    plaintiff = client
+    defendant = opposing_party
+    plaintiff_address = client.address.address
+    plaintiff_city = client.address.city
+    plaintiff_county = client.address.county
+    plaintiff_state = client.address.state
+    plaintiff_zip = client.address.zip  
+    defendant_address = opposing_party.address.address
+    defendant_city = opposing_party.address.city
+    defendant_county = opposing_party.address.county
+    defendant_state = opposing_party.address.state
+    defendant_zip = opposing_party.address.zip     
+  else:
+    defendant = client
+    plaintiff = opposing_party
+    defendant_address = client.address.address 
+    defendant_city = client.address.city
+    defendant_county = client.address.county
+    defendant_state = client.address.state
+    defendant_zip = client.address.zip
+    plaintiff_address = opposing_party.address.address
+    plaintiff_city = opposing_party.address.city
+    plaintiff_county = opposing_party.county
+    plaintiff_state = opposing_party.address.state
+    plaintiff_zip = opposing_party.address.zip   
+  children.gather()
+  if children[i].cases.there_are_any:
+    children[i].cases[j].court_name
+  impound_address
+  target_variable
+  signature_date
+  some_event
+---
+field: testing_court
+question: |
+  The court
+subquestion: |  
+  ${selected_court.address}
+  
+  ${selected_court.address.county}
+  
+  ${selected_court.description}
+---
+question: |
+  What court is the case in?
+fields:
+  - Choose a court: selected_court
+    required: False  
+    datatype: object
+    choices: |
+      macourts 
+---
+question: |
+  ${selected_court} ${selected_court.address.on_one_line()}
+---
+mandatory: True
+question: |
+  What is the docket number?
+fields:
+  - Docket number: docket_number
+    required: False
+    datatype: text
+---
+question: |
+  What is your client's name? 
+fields:
+  - First name: client.name.first
+  - Last name: client.name.last
+---
+question: |
+  What is your client's address? 
+fields:
+  - Street address: client.address.address
+    address autocomplete: True
+  - City: client.address.city
+  - County: client.address.county
+  - State: client.address.state
+  - Zipcode: client.address.zip
+---
+question: |
+  What is the opposing party's name? 
+fields:
+  - First name: opposing_party.name.first
+  - Last name: opposing_party.name.last
+---
+question: |
+  What is the opposing party's address? 
+fields:
+  - Street address: opposing_party.address.address
+    address autocomplete: True
+  - City: opposing_party.address.city
+  - County: opposing_party.address.county
+  - State: opposing_party.address.state
+  - Zipcode: opposing_party.address.zip
+---
+question: |
+  Is your client the plaintiff or the defendant? 
+field: client_role
+choices: 
+  - Plaintiff
+  - Defendant
+---
+question: |
+  Do addresses need to be impounded? 
+fields: 
+  - no label: impound_address
+    datatype: yesnoradio
+---
+question:  |
+  How many children's care and custody are at issue in this case?
+fields: 
+  - no label: children.target_number
+    datatype: integer    
+---
+question: |
+  What is the name, birthdate and current address of
+  % if children.number() == 1:
+    your client's
+  % elif i==0:
+    your client's eldest
+  % else:
+    your client's ${ordinal(i)}
+  % endif
+  child.
+fields:
+  - first name: children[i].name.first
+  - middle name: children[i].name.middle
+    required: False
+  - last name: children[i].name.last
+  - birthdate: children[i].birthdate
+    datatype: date
+  - address: children[i].address
+    datatype: text
+  - "Address(es) in last two years, if different:": children[i].address_previous
+    required: False
+    datatype: text
+  - Do you know of any cases involving this child?: children[i].cases.there_are_any
+    datatype: yesno
+---
+code: |
+  for child in children:
+    if child.cases.there_are_any:
+      knowledge = True
+      break # Stop checking once we find at least one example
+  if not defined('knowledge'):
+    knowledge = False
+---  
+question:  |
+  Explain:  
+fields:
+  - Court: children[i].cases[j].court_name
+    datatype: text
+  - Docket Number: children[i].cases[j].court_docket
+    datatype: text
+  - Status: children[i].cases[j].court_status
+    datatype: text
+  - Role of client: children[i].cases[j].court_party_role
+    input type: radio
+    choices:
+      - Witness
+      - Party
+      - Other
+      - None
+  - Name of attorney for child: children[i].cases[j].attorney
+    datatype: combobox
+    code: |
+      attorneys_gathered
+---
+question: |
+  Are there any other cases involving ${children[i]}?
+yesno: children[i].cases.there_is_another  
+---
+reconsider: True
+code: |
+  at_temp = set()
+  for child in children.complete_elements():
+    for case in child.cases.complete_elements():
+      if case.has_attorney: 
+        at_temp.add(attorney)
+  if defined('attorneys_gathered'):        
+    attorneys_gathered = attorneys_gathered.union(at_temp)
+  else:
+    attorneys_gathered = at_temp
+---
+comment: |
+  Use our previously gathered list of attorneys names.
+  Check to see which children that attorney has represented.
+  If the attorney has represented that child, add the child's name to the set
+  of children represented by that attorney.
+  
+  Using it in the PDF will look something like this:
+  attorney_list.item(0).name + ': ' + comma_and_list(attorney_list.item(0).children)
+code: |
+  attorney_list = DAList.using(object_type=DAObject, auto_gather=False)
+  for t_attorney in attorneys_gathered:
+    attorney = attorney_list.appendObject()
+    attorney.name = t_attorney
+    attorney.children = set()
+    for child in children:
+      for case in child.cases:
+        if case.has_attorney:
+          if case.attorney == attorney.name:
+            attorney.children.add(child.name.full())
+      
+  attorney_list.gathered=True
+  
+---
+mandatory: True
+question: |
+ Here is the information about the children:
+ 
+ % for child in children:
+ * ${child}, ${child.birthdate}  
+ % endfor
+---
+question: |
+  Sign your name
+subquestion: |
+  By signing your name, you agree to
+  our terms and conditions.
+signature: target_variable
+under: |
+  ${ client.name }
+---
+question: |
+  What is the date of signing?
+fields:
+  - Dated: signature_date
+    datatype: date
+---
+mandatory: True
+question: Here is your document.
+event: some_event
+attachment:
+  - name: aff_care_custody
+    filename: aff_care_custody
+    pdf template file: aff_care_custody.pdf
+    field code:
+      - "selected_court.address.county": selected_court.address.county
+      - "plaintiff": plaintiff
+      - "defendant": defendant
+      - "docket_number": docket_number
+      - "impound_address": impound_address
+      - "client_address": client.address.address if impound_address == False else ''
+      - "client_city": client.address.city if impound_address == False else ''
+      - "client_state": client.address.state if impound_address == False else ''
+      - "client_zip": client.address.zip if impound_address == False else ''
+      - "client_address_safe": client.address.address if impound_address else ''
+      - "client_city_safe": client.address.city if impound_address else ''
+      - "client_state_safe": client.address.state if impound_address else ''
+      - "client_zip_safe": client.address.zip if impound_address else ''
+      - "children[0].name.first": children.item(0).name.first
+      - "children[0].name.last": children.item(0).name.last
+      - "children[0].address": children.item(0).address if impound_address == False else '' 
+      - "children[0].address_safe": children.item(0).address if impound_address else ''
+      - "children[0].address_previous": children.item(0).address_previous if impound_address == False else ''
+      - "children[0].address_previous_safe": children.item(0).address_previous if impound_address else '' 
+      - "children[1].name.first": children.item(1).name.first
+      - "children[1].name.last": children.item(1).name.last
+      - "children[1].address": children.item(1).address if impound_address == False else ''
+      - "children[1].address_safe": children.item(1).address if impound_address else ''
+      - "children[1].address_previous": children.item(1).address_previous if impound_address == False else ''
+      - "children[1].address_previous_safe": children.item(1).address_previous if impound_address else '' 
+      - "children[2].name.first": children.item(2).name.first
+      - "children[2].name.last": children.item(2).name.last
+      - "children[2].address": children.item(2).address if impound_address == False else ''
+      - "children[2].address_safe": children.item(2).address if impound_address else ''
+      - "children[2].address_previous": children.item(2).address_previous if impound_address == False else ''
+      - "children[2].address_previous_safe": children.item(2).address_previous if impound_address else ''
+      - "participated": participated
+      - "knowledge": knowledge
+      - "children[0].letter_a": children.item(0).letter_a
+      - "children[0].court_name": children.item(0).court_name
+      - "children[0].court_docket": children.item(0).court_docket
+      - "children[0].court_status": children.item(0).court_status
+      - "children[0].court_party_role": children.item(0).court_party_role
+      - "signature": target_variable
+      - "signature_date": signature_date
+---
